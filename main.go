@@ -29,6 +29,17 @@ func dbConn() (db *sql.DB) {
 	return db
 }
 
+func bootstrapTable() {
+	db := dbConn()
+
+	_, err := db.Exec("CREATE TABLE IF NOT EXISTS burntable (id INT AUTO_INCREMENT PRIMARY KEY, messageId VARCHAR(255), messageEnc VARCHAR(255), messageIv VARCHAR(255))")
+	if err != nil {
+		panic(err)
+	}
+
+	defer db.Close()
+}
+
 func createBurnmsg(msg string) string {
 	cipherKey := []byte(os.Getenv("SECRET_KEY"))
 	block, blockerr := aes.NewCipher(cipherKey)
@@ -216,6 +227,8 @@ func middleware(next httprouter.Handle) httprouter.Handle {
 }
 
 func main() {
+	bootstrapTable()
+
 	router := httprouter.New()
 
 	router.GlobalOPTIONS = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
