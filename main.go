@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"database/sql"
 	base64 "encoding/base64"
 	"encoding/json"
@@ -36,7 +37,12 @@ func createBurnmsg(msg string) string {
 	}
 	plainText := []byte(msg)
 	cipherText := make([]byte, aes.BlockSize+len(plainText))
-	iv := cipherText[:aes.BlockSize]
+
+	iv := make([]byte, aes.BlockSize)
+	if _, err := rand.Read(iv); err != nil {
+		log.Fatal(err)
+	}
+
 	stream := cipher.NewCFBEncrypter(block, iv)
 	stream.XORKeyStream(cipherText[aes.BlockSize:], plainText)
 
@@ -115,10 +121,21 @@ func readAndBurn(id string) string {
 }
 
 func getBurnmsg(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
+	if len(ps.ByName("id")) >= 38 {
+		resp := make(map[string]string)
+		resp["error"] = "msgId length exceeded"
+		jsonResp, err := json.Marshal(resp)
+		if err != nil {
+			log.Fatalf("Error happened in JSON marshal. Err: %s", err)
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(jsonResp)
+		return
+	}
+
 	res := readAndBurn(ps.ByName("id"))
 	if res == "nan" {
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusOK)
 		resp := make(map[string]string)
 		resp["burnMsg"] = "Message does not exist or has been burned already"
 		jsonResp, err := json.Marshal(resp)
@@ -139,19 +156,32 @@ func getBurnmsg(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Write(jsonResp)
 }
 
-func handleBurnmsg(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
-
+func handleBurnmsg(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	type message_struct struct {
 		Message string `json:"message"`
 	}
 	decoder := json.NewDecoder(r.Body)
 	var m message_struct
+
 	err2 := decoder.Decode(&m)
 	if err2 != nil {
 		panic(err2)
 	}
 
+	if len(m.Message) >= 121 {
+		resp := make(map[string]string)
+		resp["error"] = "Message length exceeded"
+		jsonResp, err := json.Marshal(resp)
+		if err != nil {
+			log.Fatalf("Error happened in JSON marshal. Err: %s", err)
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(jsonResp)
+		return
+	}
+
 	resp := make(map[string]string)
+
 	create := createBurnmsg(m.Message)
 	resp["msgId"] = create
 	log.Println("Burnmessage " + create + " inserted into the database")
@@ -159,13 +189,16 @@ func handleBurnmsg(rw http.ResponseWriter, r *http.Request, p httprouter.Params)
 	if err != nil {
 		log.Fatalf("Error happened in JSON marshal. Err: %s", err)
 	}
-	rw.Write(jsonResp)
+	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonResp)
 }
 
 func middleware(next httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		w.Header().Set("access-control-allow-headers", "Accept,content-type,Access-Control-Allow-Origin,access-control-allow-headers, access-control-allow-methods, Authorization")
+		w.Header().Set("content-type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", os.Getenv("CORS_HEADER"))
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE")
+		w.Header().Set("access-control-allow-methods", "POST, GET, OPTIONS, DELETE")
 		authHeader := r.Header.Get("Authorization")
 		if authHeader != os.Getenv("AUTHHEADER_PASSWORD") {
 			resp := make(map[string]string)
@@ -184,6 +217,15 @@ func middleware(next httprouter.Handle) httprouter.Handle {
 
 func main() {
 	router := httprouter.New()
+
+	router.GlobalOPTIONS = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		header := w.Header()
+		header.Set("Access-Control-Allow-Methods", header.Get("Allow"))
+		header.Set("Access-Control-Allow-Origin", os.Getenv("CORS_HEADER"))
+		header.Set("access-control-allow-headers", "Accept,content-type,Access-Control-Allow-Origin,access-control-allow-headers, access-control-allow-methods, Authorization")
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	router.GET("/:id", middleware(getBurnmsg))
 	router.POST("/", middleware(handleBurnmsg))
 
