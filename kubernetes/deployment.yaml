@@ -37,7 +37,7 @@ spec:
               secretKeyRef:
                 name: readthenburnbackendauthheaderpassword
                 key: password
-          - name: CORS_ORIGIN
+          - name: CORS_HEADER
             value: "https://readthenburn.se"
           imagePullPolicy: Always
           ports:
