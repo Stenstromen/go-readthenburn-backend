@@ -38,7 +38,7 @@ spec:
                 name: readthenburnbackendauthheaderpassword
                 key: password
           - name: CORS_ORIGIN
-            value: https://readthenburn.se
+            value: "https://readthenburn.se"
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
