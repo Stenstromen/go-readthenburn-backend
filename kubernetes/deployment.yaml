@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: readthenburn-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: readthenburn-backend
+  template:
+    metadata:
+      labels:
+        app: readthenburn-backend
+    spec:
+      containers:
+        - name: readthenburn-backend
+          image: dockr.it/goreadthenburnbackend:k8s
+          env:
+          - name: MYSQL_HOSTNAME
+            value: mariadb-service
+          - name: MYSQL_DATABASE
+            value: readthenburn
+          - name: MYSQL_USERNAME
+            value: readthenburn
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: readthenburnmysqlpassword
+                key: password
+          - name: SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: readthenburnsecretkey
+                key: password
+          - name: AUTHHEADER_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: readthenburnbackendauthheaderpassword
+                key: password
+          - name: CORS_ORIGIN
+            value: https://readthenburn.se
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+      imagePullSecrets:
+        - name: dockrit
