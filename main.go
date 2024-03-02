@@ -208,6 +208,14 @@ func handleBurnmsg(w http.ResponseWriter, r *http.Request, p httprouter.Params) 
 
 func middleware(next httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		if ps.ByName("id") == "ready" {
+			readiness(w, r, ps)
+			return
+		}
+		if ps.ByName("id") == "status" {
+			liveness(w, r, ps)
+			return
+		}
 		w.Header().Set("access-control-allow-headers", "Accept,content-type,Access-Control-Allow-Origin,access-control-allow-headers, access-control-allow-methods, Authorization")
 		w.Header().Set("content-type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", os.Getenv("CORS_HEADER"))
@@ -260,16 +268,6 @@ func main() {
 
 	router := httprouter.New()
 
-	router.GlobalOPTIONS = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		header := w.Header()
-		header.Set("Access-Control-Allow-Methods", header.Get("Allow"))
-		header.Set("Access-Control-Allow-Origin", os.Getenv("CORS_HEADER"))
-		header.Set("access-control-allow-headers", "Accept,content-type,Access-Control-Allow-Origin,access-control-allow-headers, access-control-allow-methods, Authorization")
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	router.GET("/ready", readiness)
-	router.GET("/status", liveness)
 	router.GET("/:id", middleware(getBurnmsg))
 	router.POST("/", middleware(handleBurnmsg))
 
