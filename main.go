@@ -8,8 +8,10 @@ import (
 	base64 "encoding/base64"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
@@ -226,6 +228,33 @@ func middleware(next httprouter.Handle) httprouter.Handle {
 	}
 }
 
+func readiness(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	conn := dbConn()
+	err := conn.Ping()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+	defer conn.Close()
+}
+
+func liveness(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	MYSQL_HOSTNAME := os.Getenv("MYSQL_HOSTNAME")
+	timeout := 5 * time.Second
+
+	conn, err := net.DialTimeout("tcp", MYSQL_HOSTNAME+":3306", timeout)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("MySQL server is not reachable"))
+		return
+	}
+	defer conn.Close()
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("MySQL server is reachable"))
+}
+
 func main() {
 	bootstrapTable()
 
@@ -239,6 +268,8 @@ func main() {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	router.GET("/ready", readiness)
+	router.GET("/status", liveness)
 	router.GET("/:id", middleware(getBurnmsg))
 	router.POST("/", middleware(handleBurnmsg))
 

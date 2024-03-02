@@ -3,7 +3,8 @@
 ReadThenBurn-Backend Node.JS project rewrite in Go
 
 ## Required env
-```
+
+```ini
 MYSQL_HOSTNAME      =   STRING
 MYSQL_DATABASE      =   STRING
 MYSQL_USERNAME      =   STRING
