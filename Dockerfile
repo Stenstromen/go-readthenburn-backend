@@ -1,11 +1,12 @@
-FROM golang:1.19-alpine as build
+FROM golang:1.23-alpine as build
 WORKDIR /
 COPY *.go ./
 COPY *.mod ./
 COPY *.sum ./
-RUN go build -o /go-readthenburn-backend
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /go-readthenburn-backend
 
-FROM alpine:latest
+FROM scratch
 COPY --from=build /go-readthenburn-backend /
+USER 65534:65534
 EXPOSE 8080
-CMD [ "/go-readthenburn-backend" ]
+CMD ["/go-readthenburn-backend"]
