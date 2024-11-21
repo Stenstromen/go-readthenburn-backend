@@ -55,7 +55,7 @@ test: check-podman
 	./integration_test.sh $(AUTH_HEADER)
 
 clean:
-	@echo "Cleaning up containers..."
+	@echo "Cleaning up containers and volumes..."
 	podman stop $(APP_CONTAINER) $(DB_CONTAINER) || true
-	podman rm $(APP_CONTAINER) $(DB_CONTAINER) || true
+	podman rm -v $(APP_CONTAINER) $(DB_CONTAINER) || true
 	podman network rm $(NETWORK_NAME) || true

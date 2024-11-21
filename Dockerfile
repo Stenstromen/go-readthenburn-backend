@@ -1,9 +1,7 @@
 FROM golang:1.23-alpine as build
-WORKDIR /
-COPY *.go ./
-COPY *.mod ./
-COPY *.sum ./
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /go-readthenburn-backend
+WORKDIR /app
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /go-readthenburn-backend ./cmd/server
 
 FROM scratch
 COPY --from=build /go-readthenburn-backend /
