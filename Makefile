@@ -36,7 +36,7 @@ test: check-podman
 	podman build -t readthenburn .
 
 	@echo "Waiting for MariaDB to be ready..."
-	sleep 10
+	sleep 5
 
 	@echo "Starting application container..."
 	podman run -d --name $(APP_CONTAINER) \

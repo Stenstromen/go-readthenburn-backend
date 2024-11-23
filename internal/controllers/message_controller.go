@@ -87,22 +87,11 @@ func (c *MessageController) Middleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Headers", "Accept,Content-Type,Access-Control-Allow-Origin,Access-Control-Allow-Headers,Access-Control-Allow-Methods,Authorization")
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", c.config.CorsHeader)
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 
 		// Handle OPTIONS requests
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		// Verify authentication
-		if r.Header.Get("Authorization") != c.config.AuthHeaderPassword {
-			resp := models.MessageResponse{Error: "Invalid or no credentials"}
-			writeJSON(w, resp, http.StatusForbidden)
 			return
 		}
 
