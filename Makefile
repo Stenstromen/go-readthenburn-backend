@@ -1,4 +1,4 @@
-.PHONY: test clean check-podman
+.PHONY: test clean check-podman compose-up compose-down
 
 NETWORK_NAME = testnetwork
 DB_CONTAINER = test-mariadb
@@ -6,6 +6,13 @@ APP_CONTAINER = test-readthenburn
 DB_PASSWORD = testpass123
 AUTH_HEADER = testauth123
 AUTH_HEADER ?= testauth123
+
+compose-up:
+	podman-compose build --no-cache
+	podman-compose up
+
+compose-down:
+	podman-compose down
 
 # Check if podman is available and running
 check-podman:

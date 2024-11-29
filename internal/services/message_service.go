@@ -2,6 +2,8 @@ package services
 
 import (
 	"database/sql"
+	"fmt"
+	"go-readthenburn-backend/internal/config"
 	"go-readthenburn-backend/internal/models"
 	"go-readthenburn-backend/internal/repository"
 	"go-readthenburn-backend/pkg/encryption"
@@ -13,13 +15,15 @@ type MessageService struct {
 	repo      *repository.MessageRepository
 	encryptor *encryption.Encryptor
 	db        *sql.DB
+	config    *config.Config
 }
 
-func NewMessageService(repo *repository.MessageRepository, encryptor *encryption.Encryptor, db *sql.DB) *MessageService {
+func NewMessageService(repo *repository.MessageRepository, encryptor *encryption.Encryptor, db *sql.DB, config *config.Config) *MessageService {
 	return &MessageService{
 		repo:      repo,
 		encryptor: encryptor,
 		db:        db,
+		config:    config,
 	}
 }
 
@@ -36,7 +40,21 @@ func (s *MessageService) CreateMessage(content string) (string, error) {
 		IV:        iv,
 	}
 
+	tx, err := s.db.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+
 	if err := s.repo.CreateMessage(msg); err != nil {
+		return "", err
+	}
+
+	if err := s.repo.IncrementTotalMessages(); err != nil {
+		return "", err
+	}
+
+	if err := tx.Commit(); err != nil {
 		return "", err
 	}
 
@@ -59,6 +77,29 @@ func (s *MessageService) ReadAndBurnMessage(id string) (string, error) {
 	}
 
 	return content, nil
+}
+
+func (s *MessageService) GetTotalMessages() (int, error) {
+	return s.repo.GetTotalMessages(s.config.DBName)
+}
+
+func (s *MessageService) GetStats() (*models.StatsResponse, error) {
+	total, err := s.repo.GetTotalMessages(s.config.DBName)
+	if err != nil {
+		fmt.Printf("Error getting total messages: %v\n", err)
+		return nil, fmt.Errorf("failed to get total messages: %w", err)
+	}
+
+	history, err := s.repo.GetAllStats()
+	if err != nil {
+		fmt.Printf("Error getting message history: %v\n", err)
+		return nil, fmt.Errorf("failed to get message history: %w", err)
+	}
+
+	return &models.StatsResponse{
+		TotalMessages: total,
+		History:       history,
+	}, nil
 }
 
 func (s *MessageService) GetDB() *sql.DB {
