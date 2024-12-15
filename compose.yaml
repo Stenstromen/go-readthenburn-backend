@@ -24,6 +24,7 @@ services:
       MYSQL_USERNAME: burnuser
       MYSQL_PASSWORD: burnpass
       SECRET_KEY: EBEFDE6593354909BD817B827D2C49E2
+      CURRENT_DATE: '2024-12-12'
     ports:
       - "8080:8080"
     depends_on:

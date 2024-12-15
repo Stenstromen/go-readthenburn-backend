@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"go-readthenburn-backend/internal/models"
+	"log"
+	"os"
 	"time"
 )
 
@@ -11,12 +13,23 @@ type MessageRepository struct {
 	db *sql.DB
 }
 
+func (r *MessageRepository) GetCurrentTime() time.Time {
+	if dateStr := os.Getenv("CURRENT_DATE"); dateStr != "" {
+		if t, err := time.Parse("2006-01-02", dateStr); err == nil {
+			log.Printf("Using date from environment: %s", t.Format("2006-01-02"))
+			return t
+		}
+		log.Printf("Failed to parse CURRENT_DATE: %v", dateStr)
+	}
+	return time.Now()
+}
+
 func NewMessageRepository(db *sql.DB) *MessageRepository {
 	return &MessageRepository{db: db}
 }
 
 func (r *MessageRepository) IncrementTotalMessages() error {
-	date := time.Now().Format("2006-01-02") // YYYY-MM-DD format
+	date := r.GetCurrentTime().Format("2006-01-02")
 	_, err := r.db.Exec(`
         INSERT INTO stats (date, totalMessages) 
         VALUES(?, 1) 
@@ -48,8 +61,7 @@ func (r *MessageRepository) GetMessage(id string) (*models.Message, error) {
 
 func (r *MessageRepository) GetTotalMessages(dbName string) (int, error) {
 	var count int
-	fmt.Println("Getting total messages for database:", dbName)
-	err := r.db.QueryRow(fmt.Sprintf("SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = 'burntable'", dbName)).Scan(&count)
+	err := r.db.QueryRow(fmt.Sprintf("SELECT AUTO_INCREMENT-1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = 'burntable'", dbName)).Scan(&count)
 	if err != nil {
 		fmt.Println("Error getting total messages:", err)
 		return 0, err
@@ -72,13 +84,12 @@ func (r *MessageRepository) GetAllStats() ([]models.DailyStats, error) {
 	var stats []models.DailyStats
 	for rows.Next() {
 		var stat models.DailyStats
-		var date time.Time
-		if err := rows.Scan(&date, &stat.TotalMessages); err != nil {
+		var dateStr string
+		if err := rows.Scan(&dateStr, &stat.TotalMessages); err != nil {
 			return nil, err
 		}
-		stat.Date = date.Format("2006-01-02")
+		stat.Date = dateStr
 		stats = append(stats, stat)
 	}
-	fmt.Println("Stats:", stats)
 	return stats, rows.Err()
 }
