@@ -1,29 +1,20 @@
-.PHONY: test clean check-podman
+.PHONY: build compose-up compose-down test-deps test clean
 
 NETWORK_NAME = testnetwork
 DB_CONTAINER = test-mariadb
 APP_CONTAINER = test-readthenburn
 DB_PASSWORD = testpass123
-AUTH_HEADER = testauth123
-AUTH_HEADER ?= testauth123
 
-# Check if podman is available and running
-check-podman:
-	@if ! command -v podman >/dev/null 2>&1; then \
-		echo "❌ Error: Podman is not installed. Please install podman first."; \
-		exit 1; \
-	fi
-	@if ! podman info >/dev/null 2>&1; then \
-		echo "❌ Error: Podman daemon is not running or there are permission issues."; \
-		exit 1; \
-	fi
-	@echo "✅ Podman is available and running"
+test-deps:
+	@which podman >/dev/null 2>&1 || (echo "❌ podman is required but not installed. Aborting." && exit 1)
+	@which curl >/dev/null 2>&1 || (echo "❌ curl is required but not installed. Aborting." && exit 1)
+	@which jq >/dev/null 2>&1 || (echo "❌ jq is required but not installed. Aborting." && exit 1)
 
-test: check-podman
-	@echo "Creating podman network..."
+test: test-deps
+	@echo "ℹ️ Creating podman network..."
 	podman network create $(NETWORK_NAME) || true
 
-	@echo "Starting MariaDB container..."
+	@echo "ℹ️ Starting MariaDB container..."
 	podman run -d --name $(DB_CONTAINER) \
 		--network $(NETWORK_NAME) \
 		-e MYSQL_ROOT_PASSWORD=$(DB_PASSWORD) \
@@ -32,13 +23,13 @@ test: check-podman
 		-e MYSQL_PASSWORD=$(DB_PASSWORD) \
 		docker.io/library/mariadb:latest
 
-	@echo "Building application container..."
+	@echo "ℹ️ Building application container..."
 	podman build -t readthenburn .
 
-	@echo "Waiting for MariaDB to be ready..."
+	@echo "ℹ️ Waiting for MariaDB to be ready..."
 	sleep 5
 
-	@echo "Starting application container..."
+	@echo "ℹ️ Starting application container with March date..."
 	podman run -d --name $(APP_CONTAINER) \
 		--network $(NETWORK_NAME) \
 		-p 8080:8080 \
@@ -46,16 +37,15 @@ test: check-podman
 		-e MYSQL_DATABASE=burndb \
 		-e MYSQL_USERNAME=burnuser \
 		-e MYSQL_PASSWORD=$(DB_PASSWORD) \
-		-e AUTHHEADER_PASSWORD=$(AUTH_HEADER) \
-		-e CORS_HEADER="*" \
 		-e SECRET_KEY="7AE49A19B3C844BDB68E460D9224A5D0" \
+		-e CURRENT_DATE="2024-03-01" \
 		readthenburn
 
-	@echo "Running integration tests..."
-	./integration_test.sh $(AUTH_HEADER)
+	@echo "ℹ️ Running integration tests..."
+	./integration_test.sh
 
 clean:
-	@echo "Cleaning up containers and volumes..."
+	@echo "ℹ️ Cleaning up containers and volumes..."
 	podman stop $(APP_CONTAINER) $(DB_CONTAINER) || true
 	podman rm -v $(APP_CONTAINER) $(DB_CONTAINER) || true
 	podman network rm $(NETWORK_NAME) || true

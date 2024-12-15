@@ -2,7 +2,7 @@ package main
 
 import (
 	"database/sql"
-	_ "github.com/go-sql-driver/mysql"
+	"fmt"
 	"go-readthenburn-backend/internal/config"
 	"go-readthenburn-backend/internal/controllers"
 	"go-readthenburn-backend/internal/repository"
@@ -10,6 +10,8 @@ import (
 	"go-readthenburn-backend/pkg/encryption"
 	"log"
 	"net/http"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 func initDB(cfg *config.Config) (*sql.DB, error) {
@@ -19,7 +21,13 @@ func initDB(cfg *config.Config) (*sql.DB, error) {
 		return nil, err
 	}
 
-	// Create table if not exists
+	err = db.Ping()
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("database connection test failed: %v", err)
+	}
+
+	// Create burntable if not exists
 	_, err = db.Exec(`
         CREATE TABLE IF NOT EXISTS burntable (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -28,7 +36,24 @@ func initDB(cfg *config.Config) (*sql.DB, error) {
             messageIv VARCHAR(255)
         )
     `)
-	return db, err
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create burntable: %v", err)
+	}
+	// Create stats table if not exists
+	_, err = db.Exec(`
+        CREATE TABLE IF NOT EXISTS stats (
+            id INT AUTO_INCREMENT,
+            date DATE UNIQUE,
+            totalMessages INT NOT NULL DEFAULT 0,
+            PRIMARY KEY (id)
+        )
+    `)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create stats table: %v", err)
+	}
+	return db, nil
 }
 
 func main() {
@@ -37,14 +62,14 @@ func main() {
 	// Initialize database
 	db, err := initDB(cfg)
 	if err != nil {
-		log.Fatal("Failed to initialize database:", err)
+		log.Fatalf("Fatal database initialization error: %v", err)
 	}
 	defer db.Close()
 
 	// Initialize components
 	encryptor := encryption.NewEncryptor([]byte(cfg.SecretKey))
 	repo := repository.NewMessageRepository(db)
-	service := services.NewMessageService(repo, encryptor, db)
+	service := services.NewMessageService(repo, encryptor, db, cfg)
 	controller := controllers.NewMessageController(service, cfg)
 
 	// Setup routes

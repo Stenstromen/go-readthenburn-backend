@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"go-readthenburn-backend/internal/config"
 	"go-readthenburn-backend/internal/models"
 	"go-readthenburn-backend/internal/services"
@@ -20,6 +21,16 @@ func NewMessageController(service *services.MessageService, config *config.Confi
 		service: service,
 		config:  config,
 	}
+}
+
+func (c *MessageController) HandleStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := c.service.GetStats()
+	if err != nil {
+		fmt.Println("Error getting stats:", err)
+		http.Error(w, "Failed to get stats", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, stats, http.StatusOK)
 }
 
 func (c *MessageController) HandleCreate(w http.ResponseWriter, r *http.Request) {
@@ -84,6 +95,10 @@ func (c *MessageController) Middleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 		if r.URL.Path == "/status" {
 			c.handleLiveness(w, r)
+			return
+		}
+		if r.URL.Path == "/stats" {
+			c.HandleStats(w, r)
 			return
 		}
 
