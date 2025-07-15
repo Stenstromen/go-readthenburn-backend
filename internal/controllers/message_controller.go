@@ -1,12 +1,13 @@
 package controllers
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"go-readthenburn-backend/internal/config"
 	"go-readthenburn-backend/internal/models"
 	"go-readthenburn-backend/internal/services"
-	"net"
 	"net/http"
 	"time"
 )
@@ -131,12 +132,32 @@ func (c *MessageController) handleReadiness(w http.ResponseWriter, _ *http.Reque
 }
 
 func (c *MessageController) handleLiveness(w http.ResponseWriter, _ *http.Request) {
-	timeout := 5 * time.Second
-	conn, err := net.DialTimeout("tcp", c.config.DBHost+":3306", timeout)
-	if err != nil {
+	if c.config.DBUser == "" || c.config.DBPass == "" || c.config.DBName == "" || c.config.DBHost == "" {
 		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("MySQL configuration not available"))
 		return
 	}
-	defer conn.Close()
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:3306)/%s", c.config.DBUser, c.config.DBPass, c.config.DBHost, c.config.DBName)
+
+	db, err := sql.Open(c.config.DBDriver, dsn)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("MySQL server connection failed"))
+		return
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = db.PingContext(ctx)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("MySQL server is not responding"))
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("MySQL server is healthy"))
 }
